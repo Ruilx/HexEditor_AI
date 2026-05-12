@@ -79,7 +79,7 @@
       @createTag="editorStore.openTagEditor()"
       @editTag="onEditTag"
       @deleteTag="onDeleteTag"
-      @stringDecode="editorStore.openStringDecodeDialog()"
+      @stringDecode="onStringDecode"
       @setFileSize="editorStore.openSetFileSizeDialog()"
       @displaySettings="editorStore.openSettingsDialog('dataInfo')"
     />
@@ -216,6 +216,11 @@ function onContextMenu(event) {
 
 function hideContextMenu() {
   contextMenu.visible = false
+}
+
+function onStringDecode() {
+  hideContextMenu()
+  editorStore.openStringDecodeDialog()
 }
 
 function onEditTag() {

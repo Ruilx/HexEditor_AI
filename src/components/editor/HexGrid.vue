@@ -7,6 +7,7 @@
     @compositionstart="onCompositionStart"
     @compositionend="onCompositionEnd"
     @dragstart.prevent
+    @mousedown="onGridMousedown"
   >
     <div
       v-for="row in rows"
@@ -371,7 +372,8 @@ function getRowDecoded(rowIndex) {
   for (let i = 0; i < bpr; i++) {
     const b = fileStore.getByte(start + i)
     if (b === null) continue
-    result[i] = (b >= 0x20 && b <= 0x7E) ? String.fromCharCode(b) : '.'
+    // 可打印 ASCII (0x20-0x7E) 和扩展 ASCII (0x80-0xFF) 均显示字符，控制符和 DEL(0x7F) 显示 '.'
+    result[i] = (b >= 0x20 && b !== 0x7F) ? String.fromCharCode(b) : '.'
   }
   return result
 }
@@ -439,6 +441,17 @@ function onTagLabelClick(tag) {
   editorStore.clearInputBuffer()
   editorStore.startSelection(tag.startOffset)
   editorStore.extendSelection(tag.endOffset)
+}
+
+// 点击 hex-grid 内非字节区域时取消选中
+function onGridMousedown(event) {
+  if (event.button !== 0) return
+  // 点中字节/字符格：交给 onByteMousedown 处理
+  if (event.target.closest('[data-offset]')) return
+  // 点中标签条：不干扰标签点击逻辑
+  if (event.target.closest('[data-tag-id]')) return
+  // 其余区域（偏移列、行间距、字符串解码列等）→ 取消选中
+  editorStore.setCursor(null)
 }
 
 // 鼠标按下：设置光标 / 开始选区
