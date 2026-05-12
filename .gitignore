@@ -141,3 +141,31 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# IDE directories
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# MacOS files
+.DS_Store
+# Windows thumbnail cache files
+Thumbs.db
+# Linux trash folder which might appear on any partition or external drive
+.Trash-*
+
+# vim swap files
+*.swp
+
+# emacs lock files
+*~
+
+# nano editor files
+*.save
+
+# npm package lock files
+package-lock.json
+yarn.lock

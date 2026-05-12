@@ -1,0 +1,10 @@
+// 解释器目录
+// Phase 4 将在此目录下逐一实现：
+//   IntegerInterpreter.js  — 有/无符号 8/16/32/64 位整数
+//   FloatInterpreter.js    — Float32 / Float64
+//   FP8Interpreter.js      — FP8 E4M3 / E5M2
+//   FP16Interpreter.js     — FP16 E5M10
+//   GuidInterpreter.js     — GUID（128 位）
+//   UnicodeInterpreter.js  — UTF-8 / UTF-16 / UTF-32 码点
+//   GbkInterpreter.js      — GBK / GB18030 / SHIFT-JIS / Big5
+//   HashInterpreter.js     — MD5 / SHA1 / CRC32（延迟计算）
