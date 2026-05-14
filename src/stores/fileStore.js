@@ -148,6 +148,26 @@ export const useFileStore = defineStore('file', () => {
     activeFile.value.dirty = true
   }
 
+  /**
+   * 调整文件大小
+   * @param {number} newSize  目标字节数（正整数）
+   */
+  function resizeFile(newSize) {
+    if (!activeFile.value) return
+    const currentSize = activeFile.value.size
+    if (newSize === currentSize) return
+    if (newSize > currentSize) {
+      // 末尾追加 0x00 填充
+      const padding = new Uint8Array(newSize - currentSize)
+      activeFile.value.buffer.write(currentSize, padding, 'insert')
+    } else {
+      // 截断末尾多余字节
+      activeFile.value.buffer.delete(newSize, currentSize - newSize)
+    }
+    activeFile.value.size = activeFile.value.buffer.length
+    activeFile.value.dirty = true
+  }
+
   return {
     openedFiles,
     activeFileId,
@@ -161,7 +181,8 @@ export const useFileStore = defineStore('file', () => {
     getByte,
     getBytes,
     writeBytes,
-    deleteBytes
+    deleteBytes,
+    resizeFile
   }
 })
 

@@ -109,6 +109,8 @@ import { useEditorStore } from '@/stores/editorStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useTagStore } from '@/stores/tagStore'
 import { useStringDecodeStore } from '@/stores/stringDecodeStore'
+import { useHistoryStore } from '@/stores/historyStore'
+import { ReplaceCommand, InsertCommand, DeleteCommand } from '@/core/commands/byteCommands'
 
 const props = defineProps({
   rows: { type: Array, default: () => [] },
@@ -120,6 +122,7 @@ const tagStore = useTagStore()
 const editorStore = useEditorStore()
 const settingsStore = useSettingsStore()
 const stringDecodeStore = useStringDecodeStore()
+const historyStore = useHistoryStore()
 
 // 字体相关尺寸（与 HexEditor.vue CSS 变量保持一致）
 const byteCellW = computed(() => Math.round(settingsStore.fontSize * 24 / 13))
@@ -217,20 +220,27 @@ function handleDeleteKey(key) {
   if (editorStore.hasSelection) {
     const { start, end } = editorStore.selectionRange
     const length = end - start + 1
-    fileStore.deleteBytes(start, length)
-    tagStore.adjustTagsForDeletion(start, length)
-    stringDecodeStore.adjustForDeletion(start, length, fileStore)
+    const deletedBytes = fileStore.getBytes(start, length)
+    const tagsSnap = tagStore.serializeSnapshot()
+    const decodeSnap = stringDecodeStore.serializeSnapshot()
+    const cmd = new DeleteCommand(start, deletedBytes, tagsSnap, decodeSnap, fileStore, tagStore, stringDecodeStore)
+    historyStore.execute(cmd)
     editorStore.setCursor(start)
   } else if (key === 'backspace' && editorStore.cursorOffset > 0) {
     const delOffset = editorStore.cursorOffset - 1
-    fileStore.deleteBytes(delOffset, 1)
-    tagStore.adjustTagsForDeletion(delOffset, 1)
-    stringDecodeStore.adjustForDeletion(delOffset, 1, fileStore)
+    const deletedBytes = fileStore.getBytes(delOffset, 1)
+    const tagsSnap = tagStore.serializeSnapshot()
+    const decodeSnap = stringDecodeStore.serializeSnapshot()
+    const cmd = new DeleteCommand(delOffset, deletedBytes, tagsSnap, decodeSnap, fileStore, tagStore, stringDecodeStore)
+    historyStore.execute(cmd)
     editorStore.setCursor(delOffset)
   } else if (key === 'delete' && editorStore.cursorOffset !== null) {
-    fileStore.deleteBytes(editorStore.cursorOffset, 1)
-    tagStore.adjustTagsForDeletion(editorStore.cursorOffset, 1)
-    stringDecodeStore.adjustForDeletion(editorStore.cursorOffset, 1, fileStore)
+    const delOffset = editorStore.cursorOffset
+    const deletedBytes = fileStore.getBytes(delOffset, 1)
+    const tagsSnap = tagStore.serializeSnapshot()
+    const decodeSnap = stringDecodeStore.serializeSnapshot()
+    const cmd = new DeleteCommand(delOffset, deletedBytes, tagsSnap, decodeSnap, fileStore, tagStore, stringDecodeStore)
+    historyStore.execute(cmd)
   }
 }
 
@@ -249,17 +259,19 @@ function onCompositionEnd() {
 
 watch(() => editorStore._commitByteFlag, (flag) => {
   if (flag.offset === null) return
-  
-  const bytes = new Uint8Array([flag.value])
-  const mode = editorStore.insertMode ? 'insert' : 'replace'
-  fileStore.writeBytes(flag.offset, bytes, mode)
 
-  if (mode === 'insert') {
-    tagStore.adjustTagsForInsertion(flag.offset, 1)
-    stringDecodeStore.adjustForInsertion(flag.offset, 1, fileStore)
+  const mode = editorStore.insertMode ? 'insert' : 'replace'
+  const newBytes = new Uint8Array([flag.value])
+
+  if (mode === 'replace') {
+    const oldBytes = fileStore.getBytes(flag.offset, 1)
+    const cmd = new ReplaceCommand(flag.offset, newBytes, oldBytes, fileStore, stringDecodeStore)
+    historyStore.execute(cmd)
   } else {
-    // 替换模式：更新受影响的字符串解码区域
-    stringDecodeStore.updateAffectedRegions(flag.offset, 1, fileStore)
+    const tagsSnap = tagStore.serializeSnapshot()
+    const decodeSnap = stringDecodeStore.serializeSnapshot()
+    const cmd = new InsertCommand(flag.offset, newBytes, tagsSnap, decodeSnap, fileStore, tagStore, stringDecodeStore)
+    historyStore.execute(cmd)
   }
 
   // 移动光标到下一个字节
@@ -293,34 +305,37 @@ watch(() => editorStore._copyFlag, async () => {
 // 监听粘贴事件
 watch(() => editorStore._pasteFlag, async () => {
   if (editorStore.cursorOffset === null) return
-  
+
   try {
     const text = await navigator.clipboard.readText()
-    
+
     // 解析十六进制字符串（支持多种分隔符）
     const hexStr = text.replace(/[^0-9a-fA-F]/g, '')
     if (hexStr.length === 0 || hexStr.length % 2 !== 0) {
       console.warn('无效的十六进制数据')
       return
     }
-    
+
     const bytes = new Uint8Array(hexStr.length / 2)
     for (let i = 0; i < bytes.length; i++) {
       bytes[i] = parseInt(hexStr.substr(i * 2, 2), 16)
     }
-    
-    const mode = editorStore.insertMode ? 'insert' : 'replace'
-    fileStore.writeBytes(editorStore.cursorOffset, bytes, mode)
 
-    if (mode === 'insert') {
-      tagStore.adjustTagsForInsertion(editorStore.cursorOffset, bytes.length)
-      stringDecodeStore.adjustForInsertion(editorStore.cursorOffset, bytes.length, fileStore)
+    const offset = editorStore.cursorOffset
+    const mode = editorStore.insertMode ? 'insert' : 'replace'
+
+    if (mode === 'replace') {
+      const oldBytes = fileStore.getBytes(offset, bytes.length)
+      const cmd = new ReplaceCommand(offset, bytes, oldBytes, fileStore, stringDecodeStore)
+      historyStore.execute(cmd)
     } else {
-      stringDecodeStore.updateAffectedRegions(editorStore.cursorOffset, bytes.length, fileStore)
+      const tagsSnap = tagStore.serializeSnapshot()
+      const decodeSnap = stringDecodeStore.serializeSnapshot()
+      const cmd = new InsertCommand(offset, bytes, tagsSnap, decodeSnap, fileStore, tagStore, stringDecodeStore)
+      historyStore.execute(cmd)
     }
 
-    // 移动光标到粘贴内容之后
-    editorStore.setCursor(editorStore.cursorOffset + bytes.length)
+    editorStore.setCursor(offset + bytes.length)
   } catch (err) {
     console.error('粘贴失败:', err)
   }
@@ -329,11 +344,13 @@ watch(() => editorStore._pasteFlag, async () => {
 // 监听剪切事件
 watch(() => editorStore._cutFlag, (flag) => {
   if (flag.start === null || flag.end === null) return
-  
+
   const length = flag.end - flag.start + 1
-  fileStore.deleteBytes(flag.start, length)
-  tagStore.adjustTagsForDeletion(flag.start, length)
-  stringDecodeStore.adjustForDeletion(flag.start, length, fileStore)
+  const deletedBytes = fileStore.getBytes(flag.start, length)
+  const tagsSnap = tagStore.serializeSnapshot()
+  const decodeSnap = stringDecodeStore.serializeSnapshot()
+  const cmd = new DeleteCommand(flag.start, deletedBytes, tagsSnap, decodeSnap, fileStore, tagStore, stringDecodeStore)
+  historyStore.execute(cmd)
   editorStore.setCursor(flag.start)
 }, { deep: true })
 // 挂载时聚焦网格

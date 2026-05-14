@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { useHistoryStore } from '@/stores/historyStore'
 
 /**
  * editorStore — 编辑器交互状态
@@ -155,13 +156,11 @@ export const useEditorStore = defineStore('editor', () => {
   // 实际逻辑由各组件配合 fileStore 实现，此处提供统一入口
 
   function undo() {
-    // TODO Phase 3: 调用 EditHistory.undo()
-    console.warn('[editorStore] undo: 未实现')
+    useHistoryStore().undo()
   }
 
   function redo() {
-    // TODO Phase 3: 调用 EditHistory.redo()
-    console.warn('[editorStore] redo: 未实现')
+    useHistoryStore().redo()
   }
 
   /**
@@ -218,10 +217,9 @@ export const useEditorStore = defineStore('editor', () => {
     console.warn('[editorStore] deleteSelectedTag: 未实现')
   }
 
-  function openSetFileSizeDialog() {
-    // TODO Phase 6: 实现调整文件大小对话框
-    console.warn('[editorStore] openSetFileSizeDialog: 未实现')
-  }
+  const setFileSizeDialogOpen = ref(false)
+  function openSetFileSizeDialog() { setFileSizeDialogOpen.value = true }
+  function closeSetFileSizeDialog() { setFileSizeDialogOpen.value = false }
 
   function findNext(pattern) {
     // TODO Phase 6: 实现查找
@@ -295,7 +293,9 @@ export const useEditorStore = defineStore('editor', () => {
     copyOffsetDec,
     copyOffsetHex,
     deleteSelectedTag,
+    setFileSizeDialogOpen,
     openSetFileSizeDialog,
+    closeSetFileSizeDialog,
     findNext,
     findAll,
     replaceCurrent,

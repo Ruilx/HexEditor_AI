@@ -36,10 +36,13 @@ import { message } from 'ant-design-vue'
 import { useEditorStore } from '@/stores/editorStore'
 import { useFileStore } from '@/stores/fileStore'
 import { useStringDecodeStore } from '@/stores/stringDecodeStore'
+import { useHistoryStore } from '@/stores/historyStore'
+import { StringDecodeAddCommand } from '@/core/commands/stringDecodeCommands'
 
 const editorStore = useEditorStore()
 const fileStore = useFileStore()
 const stringDecodeStore = useStringDecodeStore()
+const historyStore = useHistoryStore()
 
 const selectedEncoding = ref('utf-8')
 
@@ -71,6 +74,9 @@ function onOk() {
     const actualLen = result.actualEnd - start + 1
     message.warning(`解码在偏移量 0x${result.actualEnd.toString(16).toUpperCase()} 处遇到无效字节，已显示前 ${actualLen} 字节的解码结果`)
   }
+
+  // 将已添加的区域记入历史（record 跳过 execute，只入栈）
+  historyStore.record(new StringDecodeAddCommand(result.regionId, stringDecodeStore))
 
   editorStore.closeStringDecodeDialog()
 }

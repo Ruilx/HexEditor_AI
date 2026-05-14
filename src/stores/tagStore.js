@@ -58,6 +58,32 @@ export const useTagStore = defineStore('tag', () => {
   }
 
   /**
+   * 使用指定 id 创建标签（用于 TagDeleteCommand.undo 还原）
+   * @param {object} tag 含 id 的完整标签对象
+   */
+  function createTagWithId(tag) {
+    // 避免重复
+    if (tags.value.some(t => t.id === tag.id)) return
+    tags.value.push({ ...tag })
+  }
+
+  /**
+   * 用快照还原 tags（用于 InsertCommand / DeleteCommand / ResizeCommand undo）
+   * @param {object[]} snapshot  由 serializeSnapshot() 生成的深拷贝数组
+   */
+  function restoreSnapshot(snapshot) {
+    tags.value = snapshot.map(t => ({ ...t }))
+  }
+
+  /**
+   * 序列化当前 tags 为深拷贝快照（供 Command 构造时调用）
+   * @returns {object[]}
+   */
+  function serializeSnapshot() {
+    return tags.value.map(t => ({ ...t }))
+  }
+
+  /**
    * 获取指定偏移量处的标签（光标悬停时）
    * @param {number} offset
    * @returns {Tag|null}
@@ -184,6 +210,7 @@ export const useTagStore = defineStore('tag', () => {
   return {
     tags,
     createTag,
+    createTagWithId,
     updateTag,
     deleteTag,
     getTagAtOffset,
@@ -193,6 +220,8 @@ export const useTagStore = defineStore('tag', () => {
     importTags,
     exportTags,
     adjustTagsForDeletion,
-    adjustTagsForInsertion
+    adjustTagsForInsertion,
+    restoreSnapshot,
+    serializeSnapshot
   }
 })

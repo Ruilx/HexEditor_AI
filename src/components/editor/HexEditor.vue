@@ -89,6 +89,7 @@
     <TagEditor />
     <SettingsDialog />
     <StringDecodeDialog />
+    <SetFileSizeDialog />
   </div>
 </template>
 
@@ -102,17 +103,21 @@ import FindReplace from '@/components/dialogs/FindReplace.vue'
 import TagEditor from '@/components/dialogs/TagEditor.vue'
 import SettingsDialog from '@/components/dialogs/SettingsDialog.vue'
 import StringDecodeDialog from '@/components/dialogs/StringDecodeDialog.vue'
+import SetFileSizeDialog from '@/components/dialogs/SetFileSizeDialog.vue'
 import { useFileStore } from '@/stores/fileStore'
 import { useEditorStore } from '@/stores/editorStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useTagStore } from '@/stores/tagStore'
 import { useStringDecodeStore } from '@/stores/stringDecodeStore'
+import { useHistoryStore } from '@/stores/historyStore'
+import { TagDeleteCommand } from '@/core/commands/tagCommands'
 
 const fileStore = useFileStore()
 const editorStore = useEditorStore()
 const settingsStore = useSettingsStore()
 const tagStore = useTagStore()
 const stringDecodeStore = useStringDecodeStore()
+const historyStore = useHistoryStore()
 
 const scrollContainerRef = ref(null)
 const fileInputRef = ref(null)
@@ -229,7 +234,11 @@ function onEditTag() {
 
 function onDeleteTag() {
   if (contextMenu.tagId) {
-    tagStore.deleteTag(contextMenu.tagId)
+    const tag = tagStore.getTagById(contextMenu.tagId)
+    if (tag) {
+      const cmd = new TagDeleteCommand({ ...tag }, tagStore)
+      historyStore.execute(cmd)
+    }
     contextMenu.tagId = null
   }
 }
@@ -266,13 +275,14 @@ watch(scrollContainerRef, (el) => {
   }
 }, { flush: 'post' })
 
-// 切换文件时重置滚动位置和字符串解码区域
+// 切换文件时重置滚动位置、字符串解码区域、撤销历史
 watch(() => fileStore.activeFileId, () => {
   scrollTop.value = 0
   if (scrollContainerRef.value) {
     scrollContainerRef.value.scrollTop = 0
   }
   stringDecodeStore.clearAll()
+  historyStore.clear()
 })
 
 onMounted(() => {

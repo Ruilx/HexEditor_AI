@@ -242,7 +242,7 @@ export const useStringDecodeStore = defineStore('stringDecode', () => {
     }
     regions.value = [...regions.value, region]
 
-    return { ok: true, truncated: result.truncated, actualEnd }
+    return { ok: true, truncated: result.truncated, actualEnd, regionId: region.id }
   }
 
   /**
@@ -393,6 +393,35 @@ export const useStringDecodeStore = defineStore('stringDecode', () => {
     regions.value = []
   }
 
+  /**
+   * 序列化当前 decode regions 为可还原的快照
+   * charMap 用 Array 保存（Map 无法直接 JSON 序列化）
+   * @returns {object[]}
+   */
+  function serializeSnapshot() {
+    return regions.value.map(r => ({
+      id: r.id,
+      startOffset: r.startOffset,
+      endOffset: r.endOffset,
+      encoding: r.encoding,
+      charMapEntries: [...r.charMap.entries()]
+    }))
+  }
+
+  /**
+   * 用快照还原 decode regions（用于 undo）
+   * @param {object[]} snapshot
+   */
+  function restoreSnapshot(snapshot) {
+    regions.value = snapshot.map(s => ({
+      id: s.id,
+      startOffset: s.startOffset,
+      endOffset: s.endOffset,
+      encoding: s.encoding,
+      charMap: new Map(s.charMapEntries)
+    }))
+  }
+
   return {
     regions,
     addRegion,
@@ -402,6 +431,8 @@ export const useStringDecodeStore = defineStore('stringDecode', () => {
     getCharAtOffset,
     getRegionsInRow,
     removeRegion,
-    clearAll
+    clearAll,
+    serializeSnapshot,
+    restoreSnapshot
   }
 })

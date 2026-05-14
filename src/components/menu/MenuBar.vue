@@ -12,8 +12,8 @@
       </a-sub-menu>
 
       <a-sub-menu key="edit" title="编辑">
-        <a-menu-item key="undo" @click="onUndo">撤销</a-menu-item>
-        <a-menu-item key="redo" @click="onRedo">重做</a-menu-item>
+        <a-menu-item key="undo" :disabled="!historyStore.canUndo" @click="onUndo">撤销</a-menu-item>
+        <a-menu-item key="redo" :disabled="!historyStore.canRedo" @click="onRedo">重做</a-menu-item>
         <a-menu-divider />
         <a-menu-item key="cut" @click="onCut">剪切</a-menu-item>
         <a-menu-item key="copy" @click="onCopy">复制</a-menu-item>
@@ -53,9 +53,11 @@
 import { ref } from 'vue'
 import { useFileStore } from '@/stores/fileStore'
 import { useEditorStore } from '@/stores/editorStore'
+import { useHistoryStore } from '@/stores/historyStore'
 
 const fileStore = useFileStore()
 const editorStore = useEditorStore()
+const historyStore = useHistoryStore()
 const fileInputRef = ref(null)
 
 function onNewFile() {

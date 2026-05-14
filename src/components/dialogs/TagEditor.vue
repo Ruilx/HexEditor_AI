@@ -29,9 +29,12 @@
 import { ref, computed, watch } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 import { useTagStore } from '@/stores/tagStore'
+import { useHistoryStore } from '@/stores/historyStore'
+import { TagCreateCommand, TagUpdateCommand } from '@/core/commands/tagCommands'
 
 const editorStore = useEditorStore()
 const tagStore = useTagStore()
+const historyStore = useHistoryStore()
 
 const form = ref({ label: '', note: '', fgColor: '#ffffff', bgColor: '#1677ff' })
 
@@ -53,10 +56,14 @@ watch(() => editorStore.tagEditorOpen, (open) => {
 function onOk() {
   if (!form.value.label.trim()) return
   if (isEdit.value) {
-    tagStore.updateTag(editorStore.editingTagId, form.value)
+    const oldTag = tagStore.getTagById(editorStore.editingTagId)
+    const oldData = { label: oldTag.label, note: oldTag.note, fgColor: oldTag.fgColor, bgColor: oldTag.bgColor }
+    const cmd = new TagUpdateCommand(editorStore.editingTagId, { ...form.value }, oldData, tagStore)
+    historyStore.execute(cmd)
   } else {
     const { start, end } = editorStore.selectionRange
-    tagStore.createTag({ startOffset: start, endOffset: end, ...form.value })
+    const cmd = new TagCreateCommand({ startOffset: start, endOffset: end, ...form.value }, tagStore)
+    historyStore.execute(cmd)
   }
   editorStore.closeTagEditor()
 }
