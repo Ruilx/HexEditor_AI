@@ -28,22 +28,74 @@
  */
 export default class TagManager {
   /**
-   * 从 File 对象（用户选择的 .TAG 文件）解析标签列表
-   * @param {File} tagFile
-   * @returns {Promise<Tag[]>}
+   * 校验 .TAG 文件数据结构是否合法
+   * @param {object} data - 已解析的 JSON 对象
+   * @param {string} [sourceFileName] - 当前二进制文件名（用于来源校验，可选）
+   * @returns {{ valid: boolean, error?: string }}
    */
-  static async load(tagFile) {
-    const text = await tagFile.text()
+  static validateTagData(data, sourceFileName) {
+    if (!data || typeof data !== 'object')
+      return { valid: false, error: '无效的文件格式（不是 JSON 对象）' }
+    if (typeof data.version !== 'number')
+      return { valid: false, error: '缺少 version 字段' }
+    if (!Array.isArray(data.tags))
+      return { valid: false, error: '缺少 tags 数组字段' }
+
+    // 来源文件名匹配校验（忽略大小写，忽略扩展名）
+    if (sourceFileName && data.sourceFile) {
+      const srcBase = sourceFileName.replace(/\.[^.]+$/, '').toLowerCase()
+      const tagBase = data.sourceFile.replace(/\.[^.]+$/, '').toLowerCase()
+      if (srcBase && tagBase && srcBase !== tagBase) {
+        return {
+          valid: false,
+          error: `标签文件来源（${data.sourceFile}）与当前文件（${sourceFileName}）不匹配`
+        }
+      }
+    }
+
+    // 每个标签必须有数值型偏移量
+    for (const tag of data.tags) {
+      if (typeof tag.startOffset !== 'number' || typeof tag.endOffset !== 'number') {
+        return { valid: false, error: '标签数据缺少必要字段（startOffset / endOffset）' }
+      }
+    }
+
+    return { valid: true }
+  }
+
+  /**
+   * 从 File 对象加载并校验 .TAG 文件
+   * @param {File} tagFile
+   * @param {string} [sourceFileName] - 当前文件名（用于来源校验）
+   * @returns {Promise<{ valid: boolean, data?: object, error?: string }>}
+   */
+  static async validateAndLoad(tagFile, sourceFileName) {
+    let text
+    try {
+      text = await tagFile.text()
+    } catch {
+      return { valid: false, error: '读取文件失败' }
+    }
     let data
     try {
       data = JSON.parse(text)
     } catch {
-      throw new Error('无效的 .TAG 文件格式')
+      return { valid: false, error: '无效的 JSON 格式' }
     }
-    if (!data.tags || !Array.isArray(data.tags)) {
-      throw new Error('.TAG 文件缺少 tags 字段')
-    }
-    return data.tags
+    const result = TagManager.validateTagData(data, sourceFileName)
+    if (!result.valid) return result
+    return { valid: true, data }
+  }
+
+  /**
+   * 从 File 对象（用户选择的 .TAG 文件）解析标签列表（旧接口，保留兼容）
+   * @param {File} tagFile
+   * @returns {Promise<Tag[]>}
+   */
+  static async load(tagFile) {
+    const result = await TagManager.validateAndLoad(tagFile)
+    if (!result.valid) throw new Error(result.error)
+    return result.data.tags
   }
 
   /**

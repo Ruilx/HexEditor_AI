@@ -42,8 +42,9 @@ function getRowBytes(rowIndex) {
 }
 
 function decodeByte(byte) {
-  if (byte === null) return ' '
-  if (byte >= 0x20 && byte <= 0x7e) return String.fromCharCode(byte)
+  if (byte === null) return '\u00A0'
+  if (byte === 0x20) return '\u00A0'  // 空格用不间断空格显示，否则 HTML 折叠
+  if (byte >= 0x21 && byte <= 0x7e) return String.fromCharCode(byte)
   return '.'
 }
 

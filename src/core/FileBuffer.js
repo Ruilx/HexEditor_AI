@@ -13,8 +13,8 @@
  */
 export default class FileBuffer {
   constructor() {
-    /** @type {Uint8Array|null} 原始文件数据（来自 File.slice 读取） */
-    this._original = null
+    /** @type {Uint8Array} 原始文件数据（来自 File.slice 读取） */
+    this._original = new Uint8Array(0)
 
     /** @type {Uint8Array} 用户新增数据缓冲（追加写入） */
     this._added = new Uint8Array(0)

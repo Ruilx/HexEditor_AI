@@ -61,7 +61,7 @@ const historyStore = useHistoryStore()
 const fileInputRef = ref(null)
 
 function onNewFile() {
-  fileStore.newFile()
+  editorStore.openNewFileDialog()
 }
 
 function onOpenFile() {

@@ -109,7 +109,7 @@ export const useEditorStore = defineStore('editor', () => {
   }
 
   // ── 编辑模式 ────────────────────────────────────────────────
-  const insertMode = ref(true)            // true=插入，false=替换
+  const insertMode = ref(false)           // true=插入，false=替换
 
   function toggleInsertMode() {
     insertMode.value = !insertMode.value
@@ -221,6 +221,10 @@ export const useEditorStore = defineStore('editor', () => {
   function openSetFileSizeDialog() { setFileSizeDialogOpen.value = true }
   function closeSetFileSizeDialog() { setFileSizeDialogOpen.value = false }
 
+  const newFileDialogOpen = ref(false)
+  function openNewFileDialog() { newFileDialogOpen.value = true }
+  function closeNewFileDialog() { newFileDialogOpen.value = false }
+
   function findNext(pattern) {
     // TODO Phase 6: 实现查找
     console.warn('[editorStore] findNext: 未实现')
@@ -296,6 +300,9 @@ export const useEditorStore = defineStore('editor', () => {
     setFileSizeDialogOpen,
     openSetFileSizeDialog,
     closeSetFileSizeDialog,
+    newFileDialogOpen,
+    openNewFileDialog,
+    closeNewFileDialog,
     findNext,
     findAll,
     replaceCurrent,
