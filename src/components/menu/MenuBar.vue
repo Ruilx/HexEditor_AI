@@ -51,17 +51,20 @@
 
 <script setup>
 import { ref } from 'vue'
+import { Modal } from 'ant-design-vue'
 import { useFileStore } from '@/stores/fileStore'
 import { useEditorStore } from '@/stores/editorStore'
 import { useHistoryStore } from '@/stores/historyStore'
+import { useTagStore } from '@/stores/tagStore'
 
 const fileStore = useFileStore()
 const editorStore = useEditorStore()
 const historyStore = useHistoryStore()
+const tagStore = useTagStore()
 const fileInputRef = ref(null)
 
 function onNewFile() {
-  editorStore.openNewFileDialog()
+  fileStore.newFile()
 }
 
 function onOpenFile() {
@@ -76,8 +79,18 @@ function onFileSelected(event) {
   event.target.value = ''
 }
 
-function onSaveFile() {
-  fileStore.saveFile()
+async function onSaveFile() {
+  await fileStore.saveFile()
+  const af = fileStore.activeFile
+  if (af?.tagFile) {
+    Modal.confirm({
+      title: '保存标签文件',
+      content: `是否同时保存标签文件 “${af.tagFile.name}”？`,
+      okText: '保存',
+      cancelText: '不保存',
+      onOk: () => fileStore.saveTagFileForActive(tagStore.exportTags())
+    })
+  }
 }
 
 function onSaveFileAs() {

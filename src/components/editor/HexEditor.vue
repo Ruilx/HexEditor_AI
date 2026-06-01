@@ -90,7 +90,6 @@
     <SettingsDialog />
     <StringDecodeDialog />
     <SetFileSizeDialog />
-    <NewFileDialog />
   </div>
 </template>
 
@@ -105,7 +104,6 @@ import TagEditor from '@/components/dialogs/TagEditor.vue'
 import SettingsDialog from '@/components/dialogs/SettingsDialog.vue'
 import StringDecodeDialog from '@/components/dialogs/StringDecodeDialog.vue'
 import SetFileSizeDialog from '@/components/dialogs/SetFileSizeDialog.vue'
-import NewFileDialog from '@/components/dialogs/NewFileDialog.vue'
 import { useFileStore } from '@/stores/fileStore'
 import { useEditorStore } from '@/stores/editorStore'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -126,12 +124,12 @@ const fileInputRef = ref(null)
 
 // ── 字体相关尺寸（随 fontSize 等比缩放） ─────────────────────
 // 基准：fontSize=13px 时各尺寸的设计值
-// rowH=17  tagH=11  byteCellW=24  charCellW=11  offsetColW=72
-const rowH      = computed(() => Math.round(settingsStore.fontSize * 17 / 13))
-const tagH      = computed(() => Math.round(settingsStore.fontSize * 11 / 13))
+// rowH=20  tagH=14  byteCellW=24  charCellW=11  offsetColW=90
+const rowH      = computed(() => Math.round(settingsStore.fontSize * 20 / 13))
+const tagH      = computed(() => Math.round(settingsStore.fontSize * 14 / 13))
 const byteCellW = computed(() => Math.round(settingsStore.fontSize * 24 / 13))
 const charCellW = computed(() => Math.round(settingsStore.fontSize * 11 / 13))
-const offsetColW = computed(() => Math.round(settingsStore.fontSize * 72 / 13))
+const offsetColW = computed(() => Math.round(settingsStore.fontSize * 90 / 13))
 
 // ── 虚拟滚动 ──────────────────────────────────────────────────
 const ROW_HEIGHT = computed(() => rowH.value + tagH.value)
@@ -277,14 +275,12 @@ watch(scrollContainerRef, (el) => {
   }
 }, { flush: 'post' })
 
-// 切换文件时重置滚动位置、字符串解码区域、撤销历史
+// 切换文件时重置滚动位置（stringDecodeStore/historyStore 清理已移入 App.vue 以支持 tag-json 视图切换）
 watch(() => fileStore.activeFileId, () => {
   scrollTop.value = 0
   if (scrollContainerRef.value) {
     scrollContainerRef.value.scrollTop = 0
   }
-  stringDecodeStore.clearAll()
-  historyStore.clear()
 })
 
 onMounted(() => {

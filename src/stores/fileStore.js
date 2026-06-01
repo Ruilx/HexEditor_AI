@@ -1,8 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import FileBuffer from '@/core/FileBuffer'
-import TagManager from '@/core/TagManager'
-import { isElectron } from '@/utils/env'
 import { useTagStore } from '@/stores/tagStore'
 
 /**
@@ -21,29 +19,24 @@ export const useFileStore = defineStore('file', () => {
   const openedFiles = ref([])
   const activeFileId = ref(null)
 
-  // 每个文件独立保存标签快照（fileId → Tag[]）
-  // 使用普通 Map，切换文件时通过 tagStore 同步响应式状态
-  const _fileTagsMap = new Map()
+  /** 当前右侧视图：'hex' | 'tag-json' */
+  const activeView = ref('hex')
 
   const activeFile = computed(() =>
     openedFiles.value.find(f => f.id === activeFileId.value) ?? null
   )
 
   /**
-   * 新建文件
-   * @param {string} [name='新文件.bin'] 文件名
-   * @param {number} [size=0] 初始大小（字节，用 0x00 填充）
+   * 新建空文件
    */
   function newFile(name = '新文件.bin', size = 0) {
     const id = crypto.randomUUID()
     const buffer = new FileBuffer()
-    if (size > 0) {
-      buffer.write(0, new Uint8Array(size), 'insert')
-    }
-    const file = { id, name, size: buffer.length, dirty: true, buffer }
+    if (size > 0) buffer.write(0, new Uint8Array(size), 'insert')
+    const file = { id, name, size: buffer.length, dirty: true, buffer, tagData: [], tagFile: null, pendingTagLoad: false }
     openedFiles.value.push(file)
-    _fileTagsMap.set(id, [])
-    _switchActiveFile(id)
+    activeFileId.value = id
+    activeView.value = 'hex'
   }
 
   /**
@@ -54,7 +47,8 @@ export const useFileStore = defineStore('file', () => {
     // 检查是否已打开同名文件（简单去重）
     const existing = openedFiles.value.find(f => f.name === file.name)
     if (existing) {
-      _switchActiveFile(existing.id)
+      activeFileId.value = existing.id
+      activeView.value = 'hex'
       return
     }
 
@@ -67,83 +61,24 @@ export const useFileStore = defineStore('file', () => {
       name: file.name,
       size: file.size,
       dirty: false,
-      buffer
+      buffer,
+      tagData: [],
+      tagFile: null,
+      pendingTagLoad: true   // 提示用户关联 .tag 文件
     }
     openedFiles.value.push(entry)
-    _fileTagsMap.set(id, [])
-    _switchActiveFile(id)
-
-    // Electron 路径：自动在同目录查找同名 .TAG 文件
-    if (isElectron && file.path) {
-      const tagPath = file.path.replace(/\.[^.]+$/, '') + '.TAG'
-      try {
-        const content = await window.electronAPI?.readTextFile(tagPath)
-        if (content) {
-          const data = JSON.parse(content)
-          const validation = TagManager.validateTagData(data, file.name)
-          if (validation.valid) {
-            _fileTagsMap.set(id, data.tags)
-            const tagStore = useTagStore()
-            tagStore.importTags(data.tags)
-          }
-        }
-      } catch {
-        // .TAG 文件不存在或无效，静默忽略
-      }
-    }
+    activeFileId.value = id
+    activeView.value = 'hex'
   }
 
   /**
-   * 内部方法：切换活动文件，并同步 tagStore 的标签数据
-   * @param {string|null} newId
-   */
-  function _switchActiveFile(newId) {
-    // 保存当前文件的标签快照
-    if (activeFileId.value !== null) {
-      const tagStore = useTagStore()
-      _fileTagsMap.set(activeFileId.value, tagStore.exportTags())
-      tagStore.clearTags()
-    }
-    activeFileId.value = newId
-    // 恢复新文件的标签
-    if (newId !== null) {
-      const tagStore = useTagStore()
-      tagStore.importTags(_fileTagsMap.get(newId) ?? [])
-    }
-  }
-
-  /**
-   * 保存（下载）当前文件；若文件有标签则同时下载 .TAG 文件
+   * 保存（下载）当前文件
    */
   async function saveFile() {
     if (!activeFile.value) return
     const data = await activeFile.value.buffer.toUint8Array()
     downloadBytes(data, activeFile.value.name)
     activeFile.value.dirty = false
-
-    // 同步保存 .TAG 文件（若有标签）
-    const tagStore = useTagStore()
-    const tags = tagStore.exportTags()
-    if (tags.length > 0) {
-      // 浏览器中连续下载需轻微延迟，避免被浏览器阻止
-      await new Promise(resolve => setTimeout(resolve, 200))
-      TagManager.save(activeFile.value.name, tags)
-    }
-  }
-
-  /**
-   * 在浏览器环境中，为当前活动文件加载 .TAG 标签文件
-   * @param {File} tagFile - 用户选择的 .TAG 文件
-   * @returns {Promise<{ success: boolean, error?: string }>}
-   */
-  async function loadTagFileForActive(tagFile) {
-    if (!activeFile.value) return { success: false, error: '没有活动文件' }
-    const result = await TagManager.validateAndLoad(tagFile, activeFile.value.name)
-    if (!result.valid) return { success: false, error: result.error }
-    const tagStore = useTagStore()
-    tagStore.importTags(result.data.tags)
-    _fileTagsMap.set(activeFileId.value, result.data.tags)
-    return { success: true }
   }
 
   /**
@@ -165,12 +100,9 @@ export const useFileStore = defineStore('file', () => {
     const idx = openedFiles.value.findIndex(f => f.id === id)
     if (idx === -1) return
     openedFiles.value.splice(idx, 1)
-    _fileTagsMap.delete(id)
     if (activeFileId.value === id) {
-      const nextId = openedFiles.value[idx]?.id ?? openedFiles.value[idx - 1]?.id ?? null
-      // 当前文件已从列表移除，直接置 null 再切换（避免保存已删除文件的标签）
-      activeFileId.value = null
-      _switchActiveFile(nextId)
+      activeFileId.value = openedFiles.value[idx]?.id ?? openedFiles.value[idx - 1]?.id ?? null
+      activeView.value = 'hex'
     }
   }
 
@@ -179,7 +111,105 @@ export const useFileStore = defineStore('file', () => {
    * @param {string} id
    */
   function setActiveFile(id) {
-    _switchActiveFile(id)
+    if (id === activeFileId.value) return
+    // 保存离开文件的标签快照
+    if (activeFileId.value !== null) {
+      const outgoing = openedFiles.value.find(f => f.id === activeFileId.value)
+      if (outgoing) outgoing.tagData = useTagStore().serializeSnapshot()
+    }
+    activeFileId.value = id
+    // 加载目标文件的标签
+    const incoming = openedFiles.value.find(f => f.id === id)
+    useTagStore().importTags(incoming?.tagData ?? [])
+  }
+
+  function setActiveView(view) {
+    activeView.value = view
+  }
+
+  // ── 每文件标签数据持久化 ──────────────────────────────────────
+
+  function setTagsForFile(id, tags) {
+    const file = openedFiles.value.find(f => f.id === id)
+    if (!file) return
+    file.tagData = tags.map(t => ({ ...t }))
+    if (file.tagFile) file.tagFile.dirty = true
+  }
+
+  function getTagsForFile(id) {
+    const file = openedFiles.value.find(f => f.id === id)
+    return file?.tagData ? file.tagData.map(t => ({ ...t })) : []
+  }
+
+  // ── .tag 文件管理 ─────────────────────────────────────────────
+
+  function initTagFile() {
+    if (!activeFile.value || activeFile.value.tagFile) return
+    activeFile.value.tagFile = { name: activeFile.value.name + '.tag', dirty: true }
+  }
+
+  function markTagFileDirty() {
+    if (activeFile.value?.tagFile) activeFile.value.tagFile.dirty = true
+  }
+
+  function clearTagFileDirty() {
+    if (activeFile.value?.tagFile) activeFile.value.tagFile.dirty = false
+  }
+
+  function clearPendingTagLoad() {
+    if (activeFile.value) activeFile.value.pendingTagLoad = false
+  }
+
+  async function loadTagFileForActive(file) {
+    if (!activeFile.value) return { success: false, error: '当前没有打开的文件' }
+    let text
+    try { text = await file.text() }
+    catch (e) { return { success: false, error: `读取文件失败：${e.message}` } }
+
+    let parsed
+    try { parsed = JSON.parse(text) }
+    catch (e) { return { success: false, error: `JSON 解析失败：${e.message}` } }
+
+    if (!Array.isArray(parsed)) {
+      return { success: false, error: '格式错误：顶层必须是数组 []' }
+    }
+    for (let i = 0; i < parsed.length; i++) {
+      const t = parsed[i]
+      if (typeof t.startOffset !== 'number' || typeof t.endOffset !== 'number') {
+        return { success: false, error: `第 ${i + 1} 项：startOffset 和 endOffset 必须是数字` }
+      }
+      if (t.startOffset < 0 || t.endOffset < t.startOffset) {
+        return { success: false, error: `第 ${i + 1} 项：offset 范围无效` }
+      }
+    }
+
+    const tags = parsed.map(t => ({
+      id: t.id || crypto.randomUUID(),
+      startOffset: t.startOffset,
+      endOffset: t.endOffset,
+      label: t.label || '',
+      note: t.note || '',
+      fgColor: t.fgColor || '#ffffff',
+      bgColor: t.bgColor || '#1677ff',
+      dynamic: t.dynamic || false
+    }))
+
+    activeFile.value.tagFile = { name: file.name, dirty: false }
+    activeFile.value.tagData = tags.map(t => ({ ...t }))
+    activeFile.value.pendingTagLoad = false
+
+    // 懒调用 tagStore（避免顶层初始化时的循环依赖风险）
+    useTagStore().importTags(tags)
+
+    return { success: true }
+  }
+
+  function saveTagFileForActive(tags) {
+    if (!activeFile.value?.tagFile) return
+    const json = JSON.stringify(tags, null, 2)
+    downloadText(json, activeFile.value.tagFile.name)
+    activeFile.value.tagFile.dirty = false
+    activeFile.value.tagData = tags.map(t => ({ ...t }))
   }
 
   /**
@@ -252,13 +282,22 @@ export const useFileStore = defineStore('file', () => {
     openedFiles,
     activeFileId,
     activeFile,
+    activeView,
     newFile,
     openFile,
     saveFile,
     saveFileAs,
     closeFile,
     setActiveFile,
+    setActiveView,
+    setTagsForFile,
+    getTagsForFile,
+    initTagFile,
+    markTagFileDirty,
+    clearTagFileDirty,
+    clearPendingTagLoad,
     loadTagFileForActive,
+    saveTagFileForActive,
     getByte,
     getBytes,
     writeBytes,
@@ -270,6 +309,16 @@ export const useFileStore = defineStore('file', () => {
 // ── 工具函数 ────────────────────────────────────────────────────
 function downloadBytes(uint8Array, filename) {
   const blob = new Blob([uint8Array], { type: 'application/octet-stream' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function downloadText(text, filename) {
+  const blob = new Blob([text], { type: 'application/json; charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

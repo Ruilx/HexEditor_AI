@@ -14,7 +14,8 @@
           <TabBar class="app-tabbar" />
 
           <!-- 编辑器主体 -->
-          <HexEditor class="app-editor" />
+          <HexEditor v-if="fileStore.activeView === 'hex'" class="app-editor" />
+          <TagFileEditor v-else-if="fileStore.activeView === 'tag-json'" class="app-editor" />
 
           <!-- 状态栏 -->
           <StatusBar class="app-statusbar" />
@@ -25,15 +26,42 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import MenuBar from '@/components/menu/MenuBar.vue'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import TabBar from '@/components/layout/TabBar.vue'
 import StatusBar from '@/components/layout/StatusBar.vue'
 import HexEditor from '@/components/editor/HexEditor.vue'
+import TagFileEditor from '@/components/editor/TagFileEditor.vue'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { useFileStore } from '@/stores/fileStore'
+import { useTagStore } from '@/stores/tagStore'
+import { useStringDecodeStore } from '@/stores/stringDecodeStore'
+import { useHistoryStore } from '@/stores/historyStore'
 
 const settingsStore = useSettingsStore()
+const fileStore = useFileStore()
+const tagStore = useTagStore()
+const stringDecodeStore = useStringDecodeStore()
+const historyStore = useHistoryStore()
+
+// 第一个标签创建时，自动为当前文件初始化 .tag 文件条目
+watch(() => tagStore.tags.length, (n, o) => {
+  if (o === 0 && n > 0 && fileStore.activeFile && !fileStore.activeFile.tagFile) {
+    fileStore.initTagFile()
+  }
+})
+
+// 标签变化时标记 .tag 文件为已修改
+watch(tagStore.tags, () => {
+  if (fileStore.activeFile?.tagFile) fileStore.markTagFileDirty()
+}, { deep: true })
+
+// 文件切换时始终清理解码区域和撤销历史（无论当前处于哪种视图）
+watch(() => fileStore.activeFileId, () => {
+  stringDecodeStore.clearAll()
+  historyStore.clear()
+})
 
 const theme = computed(() => ({
   token: {

@@ -16,10 +16,16 @@
         <a-textarea v-model:value="form.note" placeholder="备注（在状态栏显示）" :rows="2" />
       </a-form-item>
       <a-form-item label="前景颜色">
-        <a-input v-model:value="form.fgColor" placeholder="#ffffff" />
+        <div class="color-row">
+          <input type="color" v-model="form.fgColor" class="color-native" />
+          <a-input v-model:value="form.fgColor" class="color-hex" placeholder="#ffffff" />
+        </div>
       </a-form-item>
       <a-form-item label="背景颜色">
-        <a-input v-model:value="form.bgColor" placeholder="#1677ff" />
+        <div class="color-row">
+          <input type="color" v-model="form.bgColor" class="color-native" />
+          <a-input v-model:value="form.bgColor" class="color-hex" placeholder="#1677ff" />
+        </div>
       </a-form-item>
     </a-form>
   </a-modal>
@@ -72,3 +78,27 @@ function onCancel() {
   editorStore.closeTagEditor()
 }
 </script>
+
+<style scoped>
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.color-native {
+  width: 36px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid #434343;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.color-hex {
+  flex: 1 1 0;
+  font-family: monospace;
+}
+</style>

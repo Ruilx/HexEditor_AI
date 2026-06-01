@@ -33,7 +33,7 @@
             @mousedown="onByteMousedown(row.offset + colIdx, $event)"
             @mouseenter="onByteMouseenter(row.offset + colIdx, $event)"
           >
-            {{ getByteDisplay(row.offset + colIdx, byte) }}
+            {{ byte !== null ? byte.toString(16).toUpperCase().padStart(2, '0') : '  ' }}
           </span>
         </div>
 
@@ -390,7 +390,7 @@ function getRowDecoded(rowIndex) {
     const b = fileStore.getByte(start + i)
     if (b === null) continue
     // 可打印 ASCII (0x20-0x7E) 和扩展 ASCII (0x80-0xFF) 均显示字符，控制符和 DEL(0x7F) 显示 '.'
-    result[i] = (b === 0x20) ? '\u00A0' : (b >= 0x21 && b !== 0x7F) ? String.fromCharCode(b) : '.'
+    result[i] = (b >= 0x20 && b !== 0x7F) ? String.fromCharCode(b) : '.'
   }
   return result
 }
@@ -421,17 +421,6 @@ function getByteClass(offset) {
   if (offset === editorStore.cursorOffset) classes.push('hex-grid__byte--cursor')
   if (editorStore.isInSelection(offset)) classes.push('hex-grid__byte--selected')
   return classes
-}
-
-// 获取字节单元格的显示文本
-// 输入半字节时（高位 nibble 已输入），显示 “X ”，其中 X 是已输入的半字节
-function getByteDisplay(offset, byte) {
-  const ib = editorStore.inputBuffer
-  if (ib.offset === offset && ib.highNibble !== null) {
-    return ib.highNibble.toString(16).toUpperCase() + '\xB7'
-  }
-  if (byte === null) return '\xA0\xA0'
-  return byte.toString(16).toUpperCase().padStart(2, '0')
 }
 
 // 获取字节单元格内联样式（用于标签颜色覆盖，光标/选区优先级更高）
@@ -612,14 +601,13 @@ function onByteMouseenter(offset, event) {
 
 .hex-grid__tag-label {
   position: absolute;
-  top: 0;
-  height: var(--hex-tag-h);
-  line-height: var(--hex-tag-h);
+  top: 1px;
+  height: calc(var(--hex-tag-h) - 2px);
+  line-height: calc(var(--hex-tag-h) - 2px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: sans-serif;
-  font-size: 0.8em;
+  font-size: 0.85em;
   padding: 0 4px;
   border-radius: 2px;
   cursor: pointer;

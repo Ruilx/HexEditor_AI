@@ -2,29 +2,36 @@
   <div class="sidebar">
     <div class="sidebar__header">文件列表</div>
     <div class="sidebar__list">
-      <div
-        v-for="file in fileStore.openedFiles"
-        :key="file.id"
-        class="sidebar__item"
-        :class="{ 'sidebar__item--active': file.id === fileStore.activeFileId }"
-        @click="fileStore.setActiveFile(file.id)"
-      >
-        <FileOutlined class="sidebar__item-icon" />
-        <span class="sidebar__item-name" :title="file.name">{{ file.name }}</span>
-        <TagOutlined
-          v-if="file.id === fileStore.activeFileId && tagStore.tags.length > 0"
-          class="sidebar__item-tag-icon"
-          title="已加载标签文件"
-        />
-        <span v-if="file.dirty" class="sidebar__item-dirty" title="未保存">●</span>
-      </div>
+      <template v-for="file in fileStore.openedFiles" :key="file.id">
+        <!-- 二进制文件行 -->
+        <div
+          class="sidebar__item"
+          :class="{ 'sidebar__item--active': file.id === fileStore.activeFileId && fileStore.activeView === 'hex' }"
+          @click="fileStore.setActiveFile(file.id); fileStore.setActiveView('hex')"
+        >
+          <FileOutlined class="sidebar__item-icon" />
+          <span class="sidebar__item-name" :title="file.name">{{ file.name }}</span>
+          <span v-if="file.dirty" class="sidebar__item-dirty" title="未保存">●</span>
+        </div>
+        <!-- .tag 文件行（已关联时显示） -->
+        <div
+          v-if="file.tagFile"
+          class="sidebar__item sidebar__item--tag"
+          :class="{ 'sidebar__item--active': file.id === fileStore.activeFileId && fileStore.activeView === 'tag-json' }"
+          @click="fileStore.setActiveFile(file.id); fileStore.setActiveView('tag-json')"
+        >
+          <TagOutlined class="sidebar__item-icon" />
+          <span class="sidebar__item-name" :title="file.tagFile.name">{{ file.tagFile.name }}</span>
+          <span v-if="file.tagFile.dirty" class="sidebar__item-dirty" title="未保存">●</span>
+        </div>
+      </template>
       <div v-if="fileStore.openedFiles.length === 0" class="sidebar__empty">
         暂无打开的文件
       </div>
     </div>
 
-    <!-- 浏览器环境下的"加载标签文件"入口 -->
-    <div v-if="!isElectron && fileStore.activeFile" class="sidebar__tag-section">
+    <!-- 浏览器环境下的“加载标签文件”入口（当前文件尚未关联 .tag 时显示） -->
+    <div v-if="!isElectron && fileStore.activeFile && !fileStore.activeFile.tagFile" class="sidebar__tag-section">
       <button class="sidebar__tag-btn" @click="onLoadTagFile" :title="'为当前文件加载 .TAG 标签文件'">
         <TagOutlined /> 关联标签文件…
       </button>
@@ -40,16 +47,30 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { FileOutlined, TagOutlined } from '@ant-design/icons-vue'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { useFileStore } from '@/stores/fileStore'
-import { useTagStore } from '@/stores/tagStore'
 import { isElectron } from '@/utils/env'
 
 const fileStore = useFileStore()
-const tagStore = useTagStore()
 const tagFileInputRef = ref(null)
+
+// 打开新文件后自动提示关联 .tag
+watch(() => fileStore.activeFile?.pendingTagLoad, (val) => {
+  if (!val || isElectron) return
+  Modal.confirm({
+    title: '关联标签文件',
+    content: `是否为 “${fileStore.activeFile?.name}” 关联一个 .tag 标签文件？`,
+    okText: '选择文件',
+    cancelText: '跳过',
+    onOk: () => {
+      fileStore.clearPendingTagLoad()
+      tagFileInputRef.value?.click()
+    },
+    onCancel: () => fileStore.clearPendingTagLoad()
+  })
+})
 
 function onLoadTagFile() {
   tagFileInputRef.value?.click()
@@ -62,6 +83,9 @@ async function onTagFileSelected(event) {
 
   const result = await fileStore.loadTagFileForActive(file)
   if (result.success) {
+    // 等 App.vue 的 deep watcher 运行后，再清除 dirty 标志
+    await nextTick()
+    fileStore.clearTagFileDirty()
     message.success('标签文件加载成功')
   } else {
     message.error(`加载失败：${result.error}`)
@@ -113,6 +137,22 @@ async function onTagFileSelected(event) {
 .sidebar__item--active {
   background: #094771;
   color: #fff;
+}
+
+.sidebar__item--tag {
+  padding-left: 28px;
+  font-style: italic;
+  color: #9cdcfe;
+  font-size: 12px;
+}
+
+.sidebar__item--tag:hover {
+  background: #2a2d2e;
+}
+
+.sidebar__item--tag.sidebar__item--active {
+  background: #094771;
+  color: #9cdcfe;
 }
 
 .sidebar__item-icon {
