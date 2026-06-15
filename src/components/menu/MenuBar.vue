@@ -64,7 +64,7 @@ const tagStore = useTagStore()
 const fileInputRef = ref(null)
 
 function onNewFile() {
-  fileStore.newFile()
+  editorStore.openNewFileDialog()
 }
 
 function onOpenFile() {

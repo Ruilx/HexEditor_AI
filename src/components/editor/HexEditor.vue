@@ -90,6 +90,7 @@
     <SettingsDialog />
     <StringDecodeDialog />
     <SetFileSizeDialog />
+    <NewFileDialog />
   </div>
 </template>
 
@@ -104,6 +105,7 @@ import TagEditor from '@/components/dialogs/TagEditor.vue'
 import SettingsDialog from '@/components/dialogs/SettingsDialog.vue'
 import StringDecodeDialog from '@/components/dialogs/StringDecodeDialog.vue'
 import SetFileSizeDialog from '@/components/dialogs/SetFileSizeDialog.vue'
+import NewFileDialog from '@/components/dialogs/NewFileDialog.vue'
 import { useFileStore } from '@/stores/fileStore'
 import { useEditorStore } from '@/stores/editorStore'
 import { useSettingsStore } from '@/stores/settingsStore'
