@@ -33,7 +33,7 @@
             @mousedown="onByteMousedown(row.offset + colIdx, $event)"
             @mouseenter="onByteMouseenter(row.offset + colIdx, $event)"
           >
-            {{ byte !== null ? byte.toString(16).toUpperCase().padStart(2, '0') : '  ' }}
+            {{ getByteDisplay(row.offset + colIdx, byte) }}
           </span>
         </div>
 
@@ -145,6 +145,7 @@ function onKeydown(event) {
   // 十六进制字符输入 (0-9a-f)
   if (/^[0-9a-f]$/.test(key)) {
     event.preventDefault()
+    event.stopPropagation()
     editorStore.handleHexInput(key)
     return
   }
@@ -421,6 +422,18 @@ function getByteClass(offset) {
   if (offset === editorStore.cursorOffset) classes.push('hex-grid__byte--cursor')
   if (editorStore.isInSelection(offset)) classes.push('hex-grid__byte--selected')
   return classes
+}
+
+// 获取字节单元格的显示文本
+// 若正处于半字节输入中（已输入高 nibble），显示 "X " 提示；否则显示正常的两位十六进制
+// 使用不间断空格（\u00A0）代替普通空格，避免 HTML 折叠尾部空白
+function getByteDisplay(offset, byte) {
+  const ib = editorStore.inputBuffer
+  if (ib.offset === offset && ib.highNibble !== null) {
+    return ib.highNibble.toString(16).toUpperCase() + '\u00A0'
+  }
+  if (byte === null) return '\u00A0\u00A0'
+  return byte.toString(16).toUpperCase().padStart(2, '0')
 }
 
 // 获取字节单元格内联样式（用于标签颜色覆盖，光标/选区优先级更高）
